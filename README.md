@@ -25,7 +25,8 @@ This package depends on the following ROS 2 packages:
 - `rclpy`: ROS Client Library for Python
 - `sensor_msgs`: ROS messages for sensor-related data
 - `cv_bridge`: ROS package to convert between ROS images and OpenCV images
-- [`Cloud2DImageConverter`](https://github.com/AIR-UFG/Cloud2DImageConverter): External package used for making the spherical projections
+- [`colorcloud`](https://github.com/AIR-UFG/colorcloud): External package used for making the spherical projections
+- [`ros2_numpy`](https://github.com/Box-Robotics/ros2_numpy/tree/humble): External package used for converting ROS messages to NumPy arrays and vice versa
 
 Make sure you have these dependencies installed before building this package.
 
@@ -46,14 +47,14 @@ ros2 launch lidar_spherical_projection lidar_spherical_projection.launch.py
 To launch the node with custom parameters:
 
 ```bash
-ros2 launch lidar_spherical_projection lidar_spherical_projection.launch.py fov_up:=15.0 fov_down:=-15.0 width:=2048 height:=16
+ros2 launch lidar_spherical_projection lidar_spherical_projection.launch.py fov_up:=15.0 fov_down:=-15.0 width:=440 height:=16
 ```
 
 The following parameters can be configured via launch file or directly in the code:
 
 - `fov_up`: Field of view up (default: 15.0 degrees)
 - `fov_down`: Field of view down (default: -15.0 degrees)
-- `width`: Width of the projection (default: 2048 pixels)
+- `width`: Width of the projection (default: 440 pixels)
 - `height`: Height of the projection (default: 16 pixels)
 
 ### Topics
@@ -62,4 +63,8 @@ The following parameters can be configured via launch file or directly in the co
   - `/velodyne_points`: Raw point cloud data from Velodyne Lidar sensor
 
 - Published Topic:
-  - `/lidar_spherical_projection`: Spherical projection image generated from the point cloud data
+  - `/lidar_spherical_projection_x`: Spherical projection image generated from the point cloud data (x-axis)
+  - `/lidar_spherical_projection_y`: Spherical projection image generated from the point cloud data (y-axis)
+  - `/lidar_spherical_projection_z`: Spherical projection image generated from the point cloud data (z-axis)
+  - `/lidar_spherical_projection_depth`: Spherical projection image generated from the point cloud data (depth)
+  - `/lidar_spherical_projection_reflectance`: Spherical projection image generated from the point cloud data (reflectance)

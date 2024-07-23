@@ -10,8 +10,6 @@
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>cv_bridge</depend>
-  <depend>numpy</depend>
-  <depend>struct</depend>
 
   <exec_depend>ros2launch</exec_depend>
 

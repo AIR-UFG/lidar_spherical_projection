@@ -16,10 +16,6 @@ setup(
     ],
     install_requires=[
         'setuptools',
-        'launch',
-        'launch_ros',
-        'rclpy',
-        'sensor_msgs',
         'cv_bridge',
         'numpy'
     ],

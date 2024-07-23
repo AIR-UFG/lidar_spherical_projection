@@ -1,39 +1,31 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
-from sensor_msgs.msg import PointCloud2
 import numpy as np
-import struct
-from Cloud2DImageConverter import spherical_projection as sp
+from colorcloud.behley2019iccv import SphericalProjection, ProjectionTransform
+from ros2_numpy.point_cloud2 import pointcloud2_to_array
+from numpy.lib.recfunctions import structured_to_unstructured
 
 
-def projection(point_cloud, fov_up, fov_down, width, height):
-
-    reflectance, depth, mask = sp.spherical_projection(point_cloud, fov_up, fov_down, width, height)
-
-    reflectance = reflectance*255
-    reflectance = reflectance.astype(np.uint8)
-
-    return reflectance
-
-
-class SphericalProjection(Node):
+class SphericalProjectionRos(Node):
     def __init__(self):
         super().__init__('spherical_projection')
 
         self.declare_parameter('fov_up', 15.0)
         self.declare_parameter('fov_down', -15.0)
-        self.declare_parameter('width', 2048)
+        self.declare_parameter('width', 440)
         self.declare_parameter('height', 16)
         
-        self.get_logger().info("Subscribed to parameters")
+        fov_up = self.get_parameter('fov_up').get_parameter_value().double_value
+        fov_down = self.get_parameter('fov_down').get_parameter_value().double_value
+        width = self.get_parameter('width').get_parameter_value().integer_value
+        height = self.get_parameter('height').get_parameter_value().integer_value
 
-        # Show used parameters to user
-        self.get_logger().info("fov_up: " + str(self.get_parameter('fov_up').get_parameter_value().double_value))
-        self.get_logger().info("fov_down: " + str(self.get_parameter('fov_down').get_parameter_value().double_value))
-        self.get_logger().info("width: " + str(self.get_parameter('width').get_parameter_value().integer_value))
-        self.get_logger().info("height: " + str(self.get_parameter('height').get_parameter_value().integer_value))
+        self.fields = ['x', 'y', 'z', 'intensity']
+
+        self.spherical_projection = SphericalProjection(fov_up, fov_down, width, height)
+        self.projection_transform = ProjectionTransform(self.spherical_projection)
 
         self.subscription = self.create_subscription(
             PointCloud2,
@@ -41,41 +33,51 @@ class SphericalProjection(Node):
             self.projection_callback,
             10
         )
-        self.publisher = self.create_publisher(Image, '/lidar_spherical_projection', 10)
+        self.publisher_x = self.create_publisher(Image, '/lidar_spherical_projection_x', 10)
+        self.publisher_y = self.create_publisher(Image, '/lidar_spherical_projection_y', 10)
+        self.publisher_z = self.create_publisher(Image, '/lidar_spherical_projection_z', 10)
+        self.publisher_depth = self.create_publisher(Image, '/lidar_spherical_projection_depth', 10)
+        self.publisher_reflectance = self.create_publisher(Image, '/lidar_spherical_projection_reflectance', 10)
+
         self.cv_bridge = CvBridge()
 
     def projection_callback(self, msg):
-        data = msg.data
-        point_step = msg.point_step
-        offset = msg.fields[0].offset
-
-        num_points = len(data) // point_step
-        points = []
         
-        for i in range(num_points):
-            index = i * point_step
-            x, y, z, intensity = struct.unpack_from('ffff', data, offset=index+offset)
-            points.append([x, y, z, intensity])
+        pointcloud = structured_to_unstructured(pointcloud2_to_array(msg)[self.fields])
+        pointcloud[:, 3] = pointcloud[:, 3] / 255 # Normalize the intensity values
 
-        # Convert lidar points to 2D front view image
-        fov_up = self.get_parameter('fov_up').get_parameter_value().double_value
-        fov_down = self.get_parameter('fov_down').get_parameter_value().double_value
-        width = self.get_parameter('width').get_parameter_value().integer_value
-        height = self.get_parameter('height').get_parameter_value().integer_value
+        frame_img, _, _ = self.projection_transform(pointcloud, None, None) # Get the spherical projection
+        frame_img = (frame_img * 255).astype(np.uint8) # Multiply the image by 255 to get the correct range
 
-        image = projection(np.array(points), fov_up, fov_down, width, height)
-    
-        # Convert image to ROS Image message
-        ros_image_msg = self.cv_bridge.cv2_to_imgmsg(image, encoding="passthrough")
+        # Extract the components of the image
+        # Convert the image to a ROS message
+        # Publish the ROS message
 
-        # Publish ROS Image message
-        self.publisher.publish(ros_image_msg)
+        x_img = frame_img[:, :, 0] 
+        ros_x_msg = self.cv_bridge.cv2_to_imgmsg(x_img, encoding='passthrough') 
+        self.publisher_x.publish(ros_x_msg) 
+
+        y_img = frame_img[:, :, 1]
+        ros_y_msg = self.cv_bridge.cv2_to_imgmsg(y_img, encoding='passthrough')
+        self.publisher_y.publish(ros_y_msg)
+
+        z_img = frame_img[:, :, 2]
+        ros_z_msg = self.cv_bridge.cv2_to_imgmsg(z_img, encoding='passthrough')
+        self.publisher_z.publish(ros_z_msg)
+
+        depth_img = frame_img[:, :, 3]
+        ros_depth_msg = self.cv_bridge.cv2_to_imgmsg(depth_img, encoding='passthrough')
+        self.publisher_depth.publish(ros_depth_msg)
+
+        reflectance_img = frame_img[:, :, 4]
+        ros_reflectance_msg = self.cv_bridge.cv2_to_imgmsg(reflectance_img, encoding='passthrough')
+        self.publisher_reflectance.publish(ros_reflectance_msg)
 
 
 def main(args=None):
     rclpy.init(args=args)
 
-    spherical_projection = SphericalProjection()
+    spherical_projection = SphericalProjectionRos()
 
     rclpy.spin(spherical_projection)
 
